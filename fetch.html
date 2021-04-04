@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    </head>
+    <body>
+        <input type="button" value="fetch" onclick="
+        /*fetch('css').then(function(response) {
+            response.text().then(function(text) {
+                alert(text);
+                document.querySelector('article').innerHTML = text;
+            })
+        })*/
+        //Ssynchronous
+        fetch('artaicle_naruto').then(function(response) {
+            console.log(response.status);
+            if (response.status == '404') {
+                alert('Not found');
+            }
+        });
+        ">
+    </body>
+</html>

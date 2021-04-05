@@ -15,6 +15,9 @@
         </script>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
         <script src="colors.js"></script>
+        <!--<script src="fetch-master/fetch.js"></script>-->
+        <script src=https://cdn.jsdelivr.net/npm/promise-polyfill@8.1/dist/polyfill.min.js></script>
+<script src=https://cdn.jsdelivr.net/npm/whatwg-fetch@3.0/dist/fetch.umd.min.js></script>
         <script>
             function fetchPage(name) {
                 fetch(name).then(function(response) {
@@ -23,6 +26,22 @@
                     })
                 })
             }
+            fetch('list').then(function(response) {
+                response.text().then(function(text){
+                    var items = text.split(',');
+                    var i = 0;
+                    var tags = '';
+                    while (i<items.length) {
+                        var item  = items[i];
+                        var tag = '<li><a href="#!'+item+'" onclick="fetchPage(\''+item+'\')">'+item+'</a></li>';
+                        console.log(tag);
+                        tags = tags + tag;
+                        i++;
+                    }
+                    console.log(tags);
+                    document.querySelector('#nav').innerHTML = tags;
+                })
+            })
         </script>
     </head>
     <body>
@@ -34,12 +53,14 @@
     <input type="button" value="night" onclick="nightDayHandler(this);">
 
     <div id="grid">
-        <ol>
+        <ol id="nav"></ol>
+        <!--<ol>
             <li><a onclick="fetchPage('article_naruto');">나루토명대사</a></li>
             <li><a onclick="fetchPage('article_minsoo');">민수 혼란</a></li>
             <li><a onclick="fetchPage('article_iamyourman')">암욜맨</a></li>
             <li><a onclick="fetchPage('article_emart');">이마트</a></li>
-        </ol>
+        </ol>-->
+
         <article></article>
     </div>
     <img src="coding.jpg" width="100%">

@@ -1,60 +1,11 @@
 var http = require('http');
 var fs = require('fs');
 var url = require('url');
+var qs = require('querystring');
+var path = require('path');
 
-
-function templateHTML(title, list, body)
-{
-    return `
-    <!doctype html>
-    <html>
-        <head>
-            <title>web1 - ${title}</title>
-            <meta charset="utf-8">
-            <link rel="stylesheet" href="http://localhost/web/style.css">
-            <!-- Global site tag (gtag.js) - Google Analytics -->
-            <script async src="https://www.googletagmanager.com/gtag/js?id=G-4M1NXKPG6D"></script>
-            <script>
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-    
-            gtag('config', 'G-4M1NXKPG6D');
-            </script>
-            <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-            <script src="http://localhost/web/colors.js"></script>
-            <script src=https://cdn.jsdelivr.net/npm/promise-polyfill@8.1/dist/polyfill.min.js></script>
-            <script src=https://cdn.jsdelivr.net/npm/whatwg-fetch@3.0/dist/fetch.umd.min.js></script>
-        </head>
-        <body>
-        <a href="https://naver.com" target="_blank" title="naver.com">naver</a>
-    
-    
-        <h1><a href="/">Index Page</a></h1>
-    
-        <input type="button" value="night" onclick="nightDayHandler(this);">
-    
-        <div id="grid">
-            ${list}
-            <article>${body}</article>
-        </div>
-        </body>
-    </html>
-    `;
-}
-
-function templateList(filelist)
-{
-    var list = `<ol>`;
-    var i = 0;
-    while (i < filelist.length) {
-        list = list + `<li><a href="/?id=${filelist[i]}">${filelist[i]}</a></li>`;
-        i++;
-    }
-    list = list + `</ol>`;
-    return list;
-}
-
+var template = require('./lib/template.js');
+var sanitizeHtml = require('sanitize-html');
 
 var app = http.createServer(function(request,response){
     var _url = request.url;
@@ -67,22 +18,139 @@ var app = http.createServer(function(request,response){
             fs.readdir('./data', function(error, filelist) {
                 var title = 'Welcome';
                 var description = 'Hello, Node.js';
-                var list = templateList(filelist);
-                var template = templateHTML(title, list, `<h2>${title}</h2>${description}`);
+
+
+                var list = template.list(filelist);
+                var html = template.html(title, list,
+                    `<h2>${title}</h2>${description}`,
+                    `<a href="/create">create</a>`
+                );
                 response.writeHead(200);
-                response.end(template);
+                response.end(html);
             })
         } else {
             fs.readdir('./data', function(error, filelist) {
-                fs.readFile(`data/${queryData.id}`, 'utf8', function(err, description){
+                var filteredId = path.parse(queryData.id).base;
+                fs.readFile(`data/${filteredId}`, 'utf8', function(err, description){
                     var title = queryData.id;
-                    var list = templateList(filelist);
-                    var template = templateHTML(title, list, `<h2>${title}</h2>${description}`);
+                    var sanitizedTitle = sanitizeHtml(title);
+                    var sanitizedDescription = sanitizeHtml(description, {
+                        allowedTags:['li']
+                    });
+                    var list = template.list(filelist);
+                    var html = template.html(title, list,
+                        `<h2>${sanitizedTitle}</h2>${sanitizedDescription}`,
+                        `<a href="/create">create</a>
+                        <a href="/update?id=${sanitizedTitle}">update</a>
+                        <form action="delete_process" method="post">
+                            <input type="hidden" name="id" value="${sanitizedTitle}">
+                            <input type="submit" value="delete">
+                        </form>
+                        `
+                    );
                     response.writeHead(200);
-                    response.end(template);  
+                    response.end(html);
                 })
             });
         }
+    } else if (pathname === '/create') {
+        fs.readdir('./data', function(error, filelist) {
+            var title = 'article-main';
+            var list = template.list(filelist);
+            var html = template.html(title, list, `
+            <form action="/create_process" method="post">
+            <p>
+                <input type="text" name="title" placeholder="title">
+            </p>
+            <p>
+                <textarea name="description" placeholder="description"></textarea>
+            </p>
+            <p>
+                <input type="submit">
+            </p>
+            </form>
+            `);
+            response.writeHead(200);
+            response.end(html);
+        })
+    } else if (pathname === '/create_process') {
+        var body = '';
+        request.on('data', function(data) {
+            body = body + data;
+        });
+        request.on('end', function() {
+            var post = qs.parse(body);
+            var title = post.title;
+            var description = post.description;
+
+            fs.writeFile(`data/${title}`, description, 'utf8', function(err) {
+                response.writeHead(302, {Location: `/?id=${title}`});
+                response.end();
+            });
+        });
+    } else if(pathname === '/update') {
+        fs.readdir('./data', function(error, filelist) {
+            var filteredId = path.parse(queryData.id).base;
+            fs.readFile(`data/${filteredId}`, 'utf8', function(err, description){
+                var title = queryData.id;
+                var sanitizedTitle = sanitizeHtml(title);
+                var sanitizedDescription = sanitizeHtml(description, {
+                    allowedTags:['li']
+                });
+                var list = template.list(filelist);
+                var html = template.html(title, list,
+                `
+                <form action="/update_process" method="post">
+                <input type="hidden" name="id" value="${sanitizedTitle}">
+                <p>
+                    <input type="text" name="title" placeholder="title" value="${sanitizedTitle}">
+                </p>
+                <p>
+                    <textarea name="description" placeholder="description">${sanitizedDescription}</textarea>
+                </p>
+                <p>
+                    <input type="submit">
+                </p>
+                </form>
+                `,
+                `<a href="/create">create</a> <a href="/update?id=${sanitizedTitle}">update</a>`
+                );
+                response.writeHead(200);
+                response.end(html);
+            })
+        });
+    } else if (pathname === '/update_process') {
+        var body = '';
+        request.on('data', function(data) {
+            body = body + data;
+        });
+        request.on('end', function() {
+            var post = qs.parse(body);
+            var id = post.id;
+            var title = post.title;
+            var description = post.description;
+
+            fs.rename(`data/${id}`, `data/${title}`, function(error) {
+                fs.writeFile(`data/${title}`, description, 'utf8', function(err) {
+                    response.writeHead(302, {Location: `/?id=${title}`});
+                    response.end();
+                });
+            })
+        });
+    } else if (pathname === '/delete_process') {
+        var body = '';
+        request.on('data', function(data) {
+            body = body + data;
+        });
+        request.on('end', function() {
+            var post = qs.parse(body);
+            var id = post.id;
+
+            fs.unlink(`data/${id}`, function(error) {
+                response.writeHead(302, {Location: `/`});
+                response.end();
+            })
+        });
     } else {
         response.writeHead(404);
         response.end('Not found');
